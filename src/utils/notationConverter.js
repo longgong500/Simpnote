@@ -1,33 +1,91 @@
 import { NotationError } from './errors';
 
-const CHINESE_TO_WESTERN = {
-  '1': 'C',
-  '2': 'D',
-  '3': 'E',
-  '4': 'F',
-  '5': 'G',
-  '6': 'A',
-  '7': 'B'
+const DESCRIPTION_FIELDS = {
+  'T': 'title',
+  'K': 'key'
 };
 
-export function convertChineseToVexFlow(chineseNotation) {
-  if (!chineseNotation || chineseNotation.trim() === '') {
-    return '';
+const WESTERN_TO_CHINESE = {
+  'C': '1',
+  'D': '2',
+  'E': '3',
+  'F': '4',
+  'G': '5',
+  'A': '6',
+  'B': '7',
+  'z': '0',
+  'Z': '0'
+};
+
+const DURATION_MARKERS = {
+  'q': '',    // quarter note
+  'e': '_',   // eighth note
+  's': '__',  // sixteenth note
+  'h': '-'    // half note
+};
+
+function parseDescriptionHeader(notation) {
+  const lines = notation.split('\n');
+  const description = {};
+  
+  for (const line of lines) {
+    const match = line.match(/^([A-Z]):\s*(.*)$/);
+    if (match) {
+      const [_, field, value] = match;
+      if (DESCRIPTION_FIELDS[field]) {
+        description[DESCRIPTION_FIELDS[field]] = value.trim();
+      }
+    }
+  }
+  
+  return description;
+}
+
+function parseMusicNotation(notation) {
+  const lines = notation.split('\n');
+  const musicLines = lines.filter(line => !line.match(/^[A-Z]:/));
+  return musicLines.join('\n').trim();
+}
+
+export function convertWesternToChinese(westernNotation) {
+  if (!westernNotation || westernNotation.trim() === '') {
+    return { description: {}, notation: '' };
   }
 
-  // Split input into individual notes, filtering out empty strings
-  const notes = chineseNotation.trim().split(/\s+/).filter(note => note.length > 0);
+  const description = parseDescriptionHeader(westernNotation);
+  const musicNotation = parseMusicNotation(westernNotation);
 
-  if (notes.length === 0) {
-    return '';
+  // Split input into individual notes and bar lines
+  const elements = musicNotation.split(/\s+/).filter(el => el.length > 0);
+
+  if (elements.length === 0) {
+    return { description, notation: '' };
   }
 
-  // Convert to VexFlow format with note names only
-  return notes.map(note => {
-    const baseNote = CHINESE_TO_WESTERN[note];
-    if (!baseNote) {
+  const notation = elements.map(element => {
+    // Handle bar lines
+    if (element === '|') {
+      return '|';
+    }
+
+    // Parse note and duration
+    const [note, duration = 'q'] = element.split('/');
+    const baseNote = note[0].toUpperCase();
+    const chineseNote = WESTERN_TO_CHINESE[baseNote];
+    
+    if (!chineseNote) {
       throw new NotationError(`Invalid note: ${note}`);
     }
-    return `${baseNote}/4`;  // Note name with octave
+
+    // Get duration marker
+    const marker = DURATION_MARKERS[duration] || '';
+    
+    // Combine note and duration marker
+    return chineseNote + marker;
   }).join(' ');
+
+  return {
+    description,
+    notation
+  };
 }
