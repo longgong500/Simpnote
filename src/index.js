@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import * as Vex from 'vexflow';
-import { convertChineseToVexFlow } from './utils/notationConverter';
+import { convertABCToVexFlow } from './utils/abcNotationConverter';
 
-// Error boundary component to catch rendering errors
 class MusicErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -21,7 +20,7 @@ class MusicErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      return null; // Return empty to allow parent to show error message
+      return null;
     }
     return this.props.children;
   }
@@ -32,7 +31,6 @@ const MusicSheet = ({ notation, onError }) => {
   const rendererRef = useRef(null);
 
   useEffect(() => {
-    // Clear any previous errors at the start
     onError(null);
 
     if (!canvasRef.current || !notation) {
@@ -40,80 +38,88 @@ const MusicSheet = ({ notation, onError }) => {
     }
 
     try {
-      // Clear previous content
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         throw new Error('无法获取画布上下文');
       }
 
-      // Set initial dimensions
       canvas.width = 800;
-      canvas.height = 150;
+      canvas.height = 200;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Initialize VexFlow with error handling
-      try {
-        if (rendererRef.current) {
-          rendererRef.current.destroy();
-        }
-        rendererRef.current = new Vex.Flow.Renderer(canvas, Vex.Flow.Renderer.Backends.CANVAS);
-        rendererRef.current.resize(800, 150);
-      } catch (initError) {
-        console.error('VexFlow initialization error:', initError);
-        throw new Error('无法初始化乐谱渲染器');
+      if (rendererRef.current) {
+        rendererRef.current.destroy();
       }
+      rendererRef.current = new Vex.Flow.Renderer(canvas, Vex.Flow.Renderer.Backends.CANVAS);
+      rendererRef.current.resize(800, 200);
 
-      // Convert notation and create notes
-      const { measures, timeSignature } = convertChineseToVexFlow(notation);
-      if (!measures || measures.length === 0) {
-        throw new Error('无法转换简谱');
-      }
+      const { title, keySignature, staveElements, lyrics } = convertABCToVexFlow(notation);
 
-      // Calculate width needed for all measures
-      const measureWidth = 200; // Width per measure
-      const totalWidth = Math.max(800, measures.length * measureWidth);
+      const measureWidth = 200;
+      const totalWidth = Math.max(800, staveElements.length * measureWidth);
       canvas.width = totalWidth;
+      rendererRef.current.resize(totalWidth, 200);
 
-      // Add staves for each measure
-      let currentX = 0;
-      measures.forEach((measure, index) => {
-        // Get time signature values
-        const [beats, beatValue] = timeSignature.split('/').map(Number);
+      const stave = new Vex.Flow.Stave(10, 40, totalWidth - 20);
+      stave.addClef('treble');
 
-        // Create voice with correct time signature values
-        const voice = new Vex.Flow.Voice({
-          num_beats: beats,
-          beat_value: beatValue,
+      if (title) {
+        const titleText = new Vex.Flow.StaveText(title, Vex.Flow.StaveText.Position.TOP);
+        stave.addModifier(titleText);
+      }
+
+      if (keySignature) {
+        const keySign = new Vex.Flow.KeySignature(keySignature);
+        stave.addModifier(keySign);
+      }
+
+      stave.setContext(rendererRef.current.getContext()).draw();
+
+      const voice = new Vex.Flow.Voice({
+        num_beats: 4,
+        beat_value: 4,
+        resolution: Vex.Flow.RESOLUTION
+      });
+
+      const notes = staveElements.map(elem => {
+        if (elem.type === 'barline') {
+          return new Vex.Flow.BarNote();
+        }
+        return new Vex.Flow.StaveNote(elem);
+      });
+      voice.addTickables(notes);
+
+      let lyricsVoice = null;
+      if (lyrics && lyrics.length > 0) {
+        lyricsVoice = new Vex.Flow.Voice({
+          num_beats: 4,
+          beat_value: 4,
           resolution: Vex.Flow.RESOLUTION
         });
 
-        // Create notes from measure
-        const notes = measure.map(note => {
-          return new Vex.Flow.StaveNote({
-            keys: note.keys,
-            duration: note.duration,
-            auto_stem: true
-          });
-        });
+        const textNotes = lyrics.map(lyric =>
+          new Vex.Flow.TextNote({
+            text: lyric.text,
+            duration: lyric.duration,
+            font: {
+              family: 'Arial',
+              size: 12,
+              weight: ''
+            }
+          }).setLine(11)
+        );
+        lyricsVoice.addTickables(textNotes);
+      }
 
-        // Add notes to voice
-        voice.addTickables(notes);
+      const formatter = new Vex.Flow.Formatter();
+      const voices = [voice];
+      if (lyricsVoice) {
+        voices.push(lyricsVoice);
+      }
 
-        // Create and format stave
-        const stave = new Vex.Flow.Stave(currentX, 0, 200);
-        if (index === 0) {
-          stave.addClef('treble').addTimeSignature(timeSignature);
-        }
-        stave.setContext(rendererRef.current.getContext()).draw();
-
-        // Format and draw voice
-        const formatter = new Vex.Flow.Formatter();
-        formatter.joinVoices([voice]).format([voice], 180);
-        voice.draw(rendererRef.current.getContext(), stave);
-
-        currentX += 200;
-      });
+      formatter.joinVoices(voices).formatToStave(voices, stave);
+      voices.forEach(v => v.draw(rendererRef.current.getContext(), stave));
 
     } catch (error) {
       console.error('Failed to render notation:', error);
@@ -137,7 +143,7 @@ const MusicSheet = ({ notation, onError }) => {
       id="music-canvas"
       ref={canvasRef}
       style={{
-        width: '800px',
+        width: '100%',
         height: '200px',
         backgroundColor: '#fff',
         border: '1px solid #ddd'
@@ -146,7 +152,6 @@ const MusicSheet = ({ notation, onError }) => {
   );
 };
 
-// Wrap MusicSheet with error boundary in export
 const MusicSheetWithErrorBoundary = (props) => (
   <MusicErrorBoundary onError={props.onError}>
     <MusicSheet {...props} />
@@ -172,8 +177,27 @@ const App = () => {
       margin: '0 auto'
     }}>
       <div className="input-section">
-        <h2>输入简谱</h2>
-        <p>示例: L:1/8 1 2 3 4 | 5 6 7 1 |</p>
+        <h2>输入乐谱</h2>
+        <p>示例格式:</p>
+        <pre style={{
+          backgroundColor: '#f5f5f5',
+          padding: '10px',
+          borderRadius: '4px',
+          whiteSpace: 'pre-wrap',
+          fontSize: '14px',
+          lineHeight: '1.5'
+        }}>
+{`T: 小燕子
+K: F
+[V: 1]E G C A | G
+w: 小燕子穿花
+
+格式说明:
+T: - 标题
+K: - 调号 (C, G, D, A, E, B, F)
+[V: 1] - 声部标记
+w: - 歌词`}
+        </pre>
         <textarea
           value={inputNotation}
           onChange={handleInputChange}
@@ -183,9 +207,15 @@ const App = () => {
             fontFamily: 'monospace',
             padding: '10px',
             marginBottom: '10px',
-            resize: 'vertical'
+            resize: 'vertical',
+            fontSize: '14px',
+            lineHeight: '1.5'
           }}
-          placeholder="在此输入简谱..."
+          placeholder={`请输入乐谱，格式如下：
+T: 标题
+K: 调号
+[V: 1]音符 | 小节线
+w: 歌词`}
         />
         {error && (
           <div style={{
@@ -194,10 +224,11 @@ const App = () => {
             backgroundColor: '#fff0f0',
             borderRadius: '4px',
             marginTop: '10px',
-            whiteSpace: 'pre-wrap'
+            whiteSpace: 'pre-wrap',
+            fontSize: '14px',
+            lineHeight: '1.5'
           }}>
             {error.message || '发生未知错误'}
-            {error.position !== undefined && ` (位置: ${error.position})`}
           </div>
         )}
       </div>
