@@ -1,20 +1,19 @@
 import { NotationError, TimeSignatureError, MeasureError } from './errors';
 import { LexicalAnalyzer } from './lexicalAnalyzer';
 
-const CHINESE_TO_WESTERN = {
-  '1': 'C',
-  '2': 'D',
-  '3': 'E',
-  '4': 'F',
-  '5': 'G',
-  '6': 'A',
-  '7': 'B'
+const DESCRIPTION_FIELDS = {
+  'T': 'title',
+  'K': 'key'
 };
+
 
 export function convertChineseToVexFlow(chineseNotation) {
   if (!chineseNotation || chineseNotation.trim() === '') {
     return { measures: [], timeSignature: '4/4' };  // Default time signature
   }
+  
+  return description;
+}
 
   const lexer = new LexicalAnalyzer();
   const tokens = lexer.tokenize(chineseNotation.trim());

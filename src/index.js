@@ -29,12 +29,15 @@ class MusicErrorBoundary extends React.Component {
 const MusicSheet = ({ notation, onError }) => {
   const canvasRef = useRef(null);
   const rendererRef = useRef(null);
-
   useEffect(() => {
     onError(null);
 
     if (!canvasRef.current || !notation) {
       return () => {};
+    }
+
+    if (!notation.trim()) {
+      return;
     }
 
     try {
@@ -149,6 +152,7 @@ const MusicSheet = ({ notation, onError }) => {
         border: '1px solid #ddd'
       }}
     />
+
   );
 };
 
@@ -161,10 +165,17 @@ const MusicSheetWithErrorBoundary = (props) => (
 const App = () => {
   const [inputNotation, setInputNotation] = useState('');
   const [error, setError] = useState(null);
-
   const handleInputChange = (e) => {
     setInputNotation(e.target.value);
     setError(null);
+  };
+
+  const handleTimeSignatureChange = (e) => {
+    setTimeSignature(e.target.value);
+  };
+
+  const handleTempoChange = (e) => {
+    setTempo(Number(e.target.value));
   };
 
   return (
