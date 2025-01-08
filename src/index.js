@@ -42,6 +42,10 @@ const MusicSheet = ({ notation, onError }) => {
       return;
     }
 
+    if (!notation.trim()) {
+      return;
+    }
+
     try {
       console.log('Starting rendering with notation:', notation);
 
@@ -178,9 +182,6 @@ const MusicSheet = ({ notation, onError }) => {
       <canvas ref={canvasRef} style={{ display: 'block', margin: '20px auto' }} />
     </div>
   );
-};
-
-
 
 const MusicSheetWithErrorBoundary = (props) => (
   <MusicErrorBoundary onError={props.onError}>
@@ -191,10 +192,17 @@ const MusicSheetWithErrorBoundary = (props) => (
 const App = () => {
   const [inputNotation, setInputNotation] = useState('');
   const [error, setError] = useState(null);
-
   const handleInputChange = (e) => {
     setInputNotation(e.target.value);
     setError(null);
+  };
+
+  const handleTimeSignatureChange = (e) => {
+    setTimeSignature(e.target.value);
+  };
+
+  const handleTempoChange = (e) => {
+    setTempo(Number(e.target.value));
   };
 
   return (
